@@ -4,11 +4,13 @@
 
 package edwards25519
 
-import "sync"
+import (
+	"sync"
+)
 
 // basepointTable is a set of 32 affineLookupTables, where table i is generated
 // from 256i * basepoint. It is precomputed the first time it's used.
-func basepointTable() *precompTable {
+func basepointTable() *PrecomputedPoint {
 	basepointTablePrecomp.initOnce.Do(func() {
 		basepointTablePrecomp.table = PrecompPoint(NewGeneratorPoint())
 	})
@@ -16,7 +18,7 @@ func basepointTable() *precompTable {
 }
 
 var basepointTablePrecomp struct {
-	table    *precompTable
+	table    *PrecomputedPoint
 	initOnce sync.Once
 }
 

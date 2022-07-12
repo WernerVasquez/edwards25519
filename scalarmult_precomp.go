@@ -1,26 +1,29 @@
 package edwards25519
 
-// precompTable is used to quick scalar multiplication when the same Point is reused
-type precompTable [32]affineLookupTable
+// PrecomputedPoint stores the precomputed tables used for quick scalar multiplication when the same Point is reused
+type PrecomputedPoint struct {
+	//no exported fields
+	table [32]affineLookupTable
+}
 
 // pointTablePrecomp maps the canonical 32-byte encoding of a Point to its precomputed table
 // this is used to store a previously precomputed Point so that it does not need to be recalculated
-var pointTablePrecomp = make(map[[32]byte]precompTable)
+var pointTablePrecomp = make(map[[32]byte]PrecomputedPoint)
 
-// PrecompPoint returns *precompTable
+// PrecompPoint returns *PrecomputedPoint
 // It is precomputed the first time it's used for each Point p.
-// It is the only way to create the *precompTable
+// It is the only way get an initialized PrecomputedPoint
 // calling this has appreciable overhead even if it is just reusing previous computed results
-func PrecompPoint(p *Point) *precompTable {
+func PrecompPoint(p *Point) *PrecomputedPoint {
 
 	pBytes := (*[32]byte)(p.Bytes())
-	var v precompTable
+	var v PrecomputedPoint
 	found := false
 
 	if v, found = pointTablePrecomp[*pBytes]; !found {
 		pCopy := new(Point).Set(p)
 		for i := 0; i < 32; i++ {
-			v[i].FromP3(pCopy)
+			v.table[i].FromP3(pCopy)
 			for j := 0; j < 8; j++ {
 				pCopy.Add(pCopy, pCopy)
 			}
@@ -35,8 +38,8 @@ func PrecompPoint(p *Point) *precompTable {
 //
 // The scalar multiplication is done in constant time.
 // This is as fast as ScalarBaseMult
-func (pointTable *precompTable) ScalarMult(x *Scalar) *Point {
-	//pointTable := pointTable(p)
+func (precomputedPoint *PrecomputedPoint) ScalarMult(x *Scalar) *Point {
+	//precomputedPoint := precomputedPoint(p)
 
 	// Write x = sum(x_i * 16^i) so  x*B = sum( B*x_i*16^i )
 	// as described in the Ed25519 paper
@@ -58,7 +61,7 @@ func (pointTable *precompTable) ScalarMult(x *Scalar) *Point {
 	// Accumulate the odd components first
 	v := NewIdentityPoint()
 	for i := 1; i < 64; i += 2 {
-		pointTable[i/2].SelectInto(multiple, digits[i])
+		precomputedPoint.table[i/2].SelectInto(multiple, digits[i])
 		tmp1.AddAffine(v, multiple)
 		v.fromP1xP1(tmp1)
 	}
@@ -76,7 +79,7 @@ func (pointTable *precompTable) ScalarMult(x *Scalar) *Point {
 
 	// Accumulate the even components
 	for i := 0; i < 64; i += 2 {
-		pointTable[i/2].SelectInto(multiple, digits[i])
+		precomputedPoint.table[i/2].SelectInto(multiple, digits[i])
 		tmp1.AddAffine(v, multiple)
 		v.fromP1xP1(tmp1)
 	}
@@ -87,12 +90,13 @@ func (pointTable *precompTable) ScalarMult(x *Scalar) *Point {
 // ScalarMultPrecomp sets v = x * P and returns v.
 //
 // The scalar multiplication is done in constant time.
-// This is slightly slower than ScalarBaseMult, but much faster than ScalarMult
+// This is slightly slower than (precomputedPoint *PrecomputedPoint) ScalarMult
+// but much faster than (v *Point) ScalarMult
 // for points which are used many times
-func (v *Point) ScalarMultPrecomp(x *Scalar, p *Point) *Point {
-	pointTable := PrecompPoint(p)
+func (v *Point) ScalarMultPrecomp(x *Scalar, p *Point) (*Point, *PrecomputedPoint) {
+	precomputedPoint := PrecompPoint(p)
 
-	v.Set(pointTable.ScalarMult(x))
+	v.Set(precomputedPoint.ScalarMult(x))
 
-	return v
+	return v, precomputedPoint
 }

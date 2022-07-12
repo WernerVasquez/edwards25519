@@ -52,7 +52,7 @@ func TestMultPrecompVsScalarMultTwoPoints(t *testing.T) {
 	}
 }
 
-func TestPrecompTable_ScalarMultVsDalek(t *testing.T) {
+func TestPrecomputedPoint_ScalarMultVsDalek(t *testing.T) {
 
 	p := PrecompPoint(B).ScalarMult(&dalekScalar)
 
@@ -62,7 +62,39 @@ func TestPrecompTable_ScalarMultVsDalek(t *testing.T) {
 	checkOnCurve(t, p)
 }
 
+func TestScalarMultPrecompVsDalek(t *testing.T) {
+
+	p1, precomputedPoint := new(Point).ScalarMultPrecomp(&dalekScalar, B)
+
+	p2 := precomputedPoint.ScalarMult(&dalekScalar)
+
+	if dalekScalarBasepoint.Equal(p1) != 1 {
+		t.Error("ScalarMultPrecomp does not match dalek")
+	}
+
+	if dalekScalarBasepoint.Equal(p2) != 1 {
+		t.Error("ScalarMult from returned precomputedPoint does not match dalek")
+	}
+
+	checkOnCurve(t, p1)
+}
+
 //benchmarks
+
+func BenchmarkPrecompPoint(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		PrecompPoint(NewGeneratorPoint())
+	}
+}
+
+func BenchmarkPrecompPointInitialRunOnly(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		PrecompPoint(NewGeneratorPoint())
+
+		//reset pointTablePrecomp so each run does full initialization
+		pointTablePrecomp = make(map[[32]byte]PrecomputedPoint)
+	}
+}
 
 func BenchmarkScalarMultPrecomp(b *testing.B) {
 	var p Point
@@ -72,7 +104,7 @@ func BenchmarkScalarMultPrecomp(b *testing.B) {
 	}
 }
 
-func BenchmarkPrecompTable_ScalarMult(b *testing.B) {
+func BenchmarkPrecomputedPoint_ScalarMult(b *testing.B) {
 
 	t := PrecompPoint(B)
 

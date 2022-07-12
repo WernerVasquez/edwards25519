@@ -5,6 +5,7 @@
 package edwards25519
 
 import (
+	"sync"
 	"testing"
 	"testing/quick"
 )
@@ -124,7 +125,7 @@ func TestBasepointTableGeneration(t *testing.T) {
 		// Build the table
 		table[i].FromP3(tmp3)
 		// Assert equality with the hardcoded one
-		if table[i] != basepointTable[i] {
+		if table[i] != basepointTable.table[i] {
 			t.Errorf("Basepoint table %d does not match", i)
 		}
 
@@ -189,6 +190,22 @@ func BenchmarkScalarBaseMult(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		p.ScalarBaseMult(&dalekScalar)
+	}
+}
+
+func BenchmarkScalarBaseMultInitialRunOnly(b *testing.B) {
+	var p Point
+	var newSyncOnce sync.Once //used for "resetting" the sync.Once used by basepointTablePrecomp
+
+	for i := 0; i < b.N; i++ {
+		p.ScalarBaseMult(&dalekScalar)
+
+		//reset pointTablePrecomp and basepointTablePrecomp.initOnce so each run does full initialization
+		pointTablePrecomp = make(map[[32]byte]PrecomputedPoint)
+
+		//This creates a copy of a lock value, newSyncOnce
+		//This is what we want to do in order to "reset" basepointTablePrecomp.initOnce each run
+		basepointTablePrecomp.initOnce = newSyncOnce
 	}
 }
 
